@@ -118,7 +118,8 @@ class Subject implements GetXmlInterface, LoadFromXmlInterface
             throw new InvalidXmlException('Missing NameID element in Subject');
         }
         if (!$this->getSubjectConfirmations()) {
-            throw new InvalidXmlException('Missing SubjectConfirmation element in Subject');
+            /* for some reason my client's Idp does not provide this element - hacking it out */
+            //throw new InvalidXmlException('Missing SubjectConfirmation element in Subject');
         }
     }
 
