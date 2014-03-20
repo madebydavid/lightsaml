@@ -13,7 +13,6 @@ use AerialShip\LightSaml\Security\X509Certificate;
 
 class KeyDescriptor implements GetXmlInterface, LoadFromXmlInterface
 {
-    use XmlRequiredAttributesTrait;
 
 
     const USE_SIGNING = 'signing';
@@ -31,6 +30,15 @@ class KeyDescriptor implements GetXmlInterface, LoadFromXmlInterface
     function __construct($use = null, X509Certificate $certificate = null) {
         $this->use = $use;
         $this->certificate = $certificate;
+    }
+
+
+    function checkRequiredAttributes(\DOMElement $element, array $attributes) {
+        foreach ($attributes as $name) {
+            if (!$element->hasAttribute($name)) {
+                throw new InvalidXmlException('XML Element '.$element->localName.' missing required attribute '.$name);
+            }
+        }
     }
 
 

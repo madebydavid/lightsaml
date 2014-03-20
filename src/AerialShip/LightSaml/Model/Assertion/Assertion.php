@@ -17,7 +17,6 @@ use AerialShip\LightSaml\Protocol;
 
 class Assertion implements GetXmlInterface, LoadFromXmlInterface
 {
-    use XmlRequiredAttributesTrait;
 
 
     /** @var string */
@@ -55,6 +54,13 @@ class Assertion implements GetXmlInterface, LoadFromXmlInterface
 
 
 
+public function checkRequiredAttributes(\DOMElement $element, array $attributes) {
+        foreach ($attributes as $name) {
+            if (!$element->hasAttribute($name)) {
+                throw new InvalidXmlException('XML Element '.$element->localName.' missing required attribute '.$name);
+            }
+        }
+    }
 
 
     /**

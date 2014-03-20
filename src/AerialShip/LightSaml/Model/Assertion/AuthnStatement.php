@@ -13,7 +13,6 @@ use AerialShip\LightSaml\Protocol;
 
 class AuthnStatement implements GetXmlInterface, LoadFromXmlInterface
 {
-    use XmlRequiredAttributesTrait;
 
 
     /** @var int */
@@ -26,6 +25,13 @@ class AuthnStatement implements GetXmlInterface, LoadFromXmlInterface
     protected $authnContext;
 
 
+   public function checkRequiredAttributes(\DOMElement $element, array $attributes) {
+        foreach ($attributes as $name) {
+            if (!$element->hasAttribute($name)) {
+                throw new InvalidXmlException('XML Element '.$element->localName.' missing required attribute '.$name);
+            }
+        }
+    }
 
 
     /**

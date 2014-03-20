@@ -17,11 +17,9 @@ use AerialShip\LightSaml\Protocol;
 use AerialShip\LightSaml\Security\X509Certificate;
 
 
+
 abstract class Message implements GetXmlInterface, GetSignedXmlInterface, LoadFromXmlInterface
 {
-    use XmlRequiredAttributesTrait;
-    use XmlChildrenLoaderTrait;
-
 
     /** @var string */
     protected $id;
@@ -45,6 +43,13 @@ abstract class Message implements GetXmlInterface, GetSignedXmlInterface, LoadFr
     /** @var string */
     protected $relayState;
 
+    public function checkRequiredAttributes(\DOMElement $element, array $attributes) {
+        foreach ($attributes as $name) {
+            if (!$element->hasAttribute($name)) {
+                throw new InvalidXmlException('XML Element '.$element->localName.' missing required attribute '.$name);
+            }
+        }
+    }
 
     /**
      * @param \DOMElement $xml
@@ -317,10 +322,10 @@ abstract class Message implements GetXmlInterface, GetSignedXmlInterface, LoadFr
         $this->setIssueInstant(Helper::parseSAMLTime($xml->getAttribute('IssueInstant')));
         $this->setDestination($xml->getAttribute('Destination'));
 
-
-        $this->iterateChildrenElements($xml, function(\DOMElement $node) {
+	$message = $this;
+        $this->iterateChildrenElements($xml, function(\DOMElement $node) use ($message) {
             if ($node->localName == 'Issuer' && $node->namespaceURI == Protocol::NS_ASSERTION) {
-                $this->setIssuer($node->textContent);
+                $message->setIssuer($node->textContent);
             }
         });
     }
@@ -333,5 +338,88 @@ abstract class Message implements GetXmlInterface, GetSignedXmlInterface, LoadFr
         $signature->setXmlSecurityKey($key);
         $this->setSignature($signature);
     }
+    
+    protected function iterateChildrenElements(\DOMElement $xml, \Closure $elementCallback) {
+        for ($node = $xml->firstChild; $node !== NULL; $node = $node->nextSibling) {
+            if ($node instanceof \DOMElement) {
+                $elementCallback($node);
+            }
+        }
+    }
 
+    protected function loadXmlChildren(\DOMElement $xml, array $node2ClassMap, \Closure $itemCallback) {
+        $result = array();
+        $this->iterateChildrenElements($xml, function(\DOMElement $node) use (&$result, $node2ClassMap, $itemCallback) {
+            $recognized = $this->doMapping($node, $node2ClassMap, $itemCallback);
+            if (!$recognized) {
+                $result[] = $node;
+            }
+        });
+        return $result;
+    }
+
+
+    /**
+     * @param \DOMElement $node
+     * @param array $node2ClassMap
+     * @param callable $itemCallback
+     * @return \DOMElement|null
+     */
+    private function doMapping(\DOMElement $node, array $node2ClassMap, \Closure $itemCallback) {
+        $recognized = false;
+        foreach ($node2ClassMap as $meta) {
+            if (!$meta) continue;
+            $this->getNodeNameAndNamespaceFromMeta($meta, $nodeName, $nodeNS);
+            if ($nodeName == $node->localName
+                && (!$nodeNS || $nodeNS == $node->namespaceURI)
+            ) {
+                $obj = $this->getObjectFromMetaClass($meta, $node);
+                $itemCallback($obj);
+                $recognized = true;
+                break;
+            }
+        } // foreach $node2ClassMap
+        return $recognized;
+    }
+
+
+    private function getNodeNameAndNamespaceFromMeta($meta, &$nodeName, &$nodeNS) {
+        if (!is_array($meta)) {
+            throw new \InvalidArgumentException('Meta must be array');
+        }
+        if (!isset($meta['node'])) {
+            throw new \InvalidArgumentException('Missing node meta');
+        }
+        $nodeName = null;
+        $nodeNS = null;
+        if (is_string($meta['node'])) {
+            $nodeName = $meta['node'];
+        } else if (is_array($meta['node'])) {
+            $nodeName = @$meta['node']['name'];
+            $nodeNS = @$meta['node']['ns'];
+        }
+        if (!$nodeName) {
+            throw new \InvalidArgumentException('Missing node name meta');
+        }
+    }
+
+    /**
+     * @param $meta
+     * @param \DOMElement $node
+     * @throws \InvalidArgumentException
+     * @return LoadFromXmlInterface
+     */
+    private function getObjectFromMetaClass($meta, \DOMElement $node) {
+        $class = @$meta['class'];
+        if (!$class) {
+            throw new \InvalidArgumentException('Missing class meta');
+        }
+        $obj = new $class();
+        if ($obj instanceof LoadFromXmlInterface) {
+            $obj->loadFromXml($node);
+        } else {
+            throw new \InvalidArgumentException("Class $class must implement LoadFromXmlInterface");
+        }
+        return $obj;
+    }
 } 
